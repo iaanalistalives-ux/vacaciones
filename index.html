@@ -567,6 +567,12 @@ select{font-family:inherit;font-size:13.5px;font-weight:700;color:var(--sage);bo
 .kpi .u{font-size:15px;font-weight:700;color:var(--stone);}
 .kpi.alert .v{color:var(--rose);} .kpi.neutro .v{color:var(--slate);} .kpi.meta .v{color:var(--taupe);}
 .kpi .s{font-size:11.5px;color:var(--stone);margin-top:6px;}
+.kpi.kclic{cursor:pointer;}
+.kpi.kclic:focus-visible{outline:3px solid rgba(15,122,90,.45);outline-offset:2px;}
+.kpi.activo{box-shadow:0 0 0 3px #0F7A5A,var(--sh-h);}
+.kpi.alert.activo{box-shadow:0 0 0 3px #DC2626,var(--sh-h);}
+.kpi.neutro.activo{box-shadow:0 0 0 3px #4E6B78,var(--sh-h);}
+.kpi.hero.activo{box-shadow:0 0 0 3px #10B981,var(--sh-h);}
 .kpi.hero{background:var(--petrol);}
 .kpi.hero .banda{background:var(--emer);}
 .kpi.hero .l,.kpi.hero .s,.kpi.hero .u{color:#8FB3AC;}
@@ -688,6 +694,7 @@ body.vcModal{overflow:hidden;}
     <select id="fTipo" aria-label="Tipo de trabajador"></select>
     <select id="fEst" aria-label="Estado">
       <option value="">Todos los estados</option>
+      <option value="pend">Con días ganados sin gozar</option>
       <option value="urg">Con período urgente</option>
       <option value="cum">Con período cumplido</option>
       <option value="va">Va a cumplir este año</option>
@@ -704,10 +711,10 @@ body.vcModal{overflow:hidden;}
 
   <div id="cuerpo">
     <div class="kpis" id="kpis">
-      <div class="kpi hero"><span class="banda"></span><div class="cuerpo"><div class="l">Días ganados sin gozar</div><div class="row"><span class="v" id="kPend">—</span><span class="u">días</span></div><div class="s" id="kPendS"></div></div></div>
-      <div class="kpi alert"><span class="banda"></span><div class="cuerpo"><div class="l">Urgentes</div><div class="row"><span class="v" id="kUrg">—</span><span class="u">trabajadores</span></div><div class="s" id="kUrgS"></div></div></div>
-      <div class="kpi"><span class="banda"></span><div class="cuerpo"><div class="l">Van a cumplir este año</div><div class="row"><span class="v" id="kVa">—</span><span class="u">trabajadores</span></div><div class="s" id="kVaS"></div></div></div>
-      <div class="kpi neutro"><span class="banda"></span><div class="cuerpo"><div class="l">Con adelanto</div><div class="row"><span class="v" id="kAde">—</span><span class="u">trabajadores</span></div><div class="s" id="kAdeS"></div></div></div>
+      <div class="kpi hero kclic" data-f="pend" role="button" tabindex="0" aria-pressed="false" title="Ver en la tabla quiénes están en este indicador"><span class="banda"></span><div class="cuerpo"><div class="l">Días ganados sin gozar</div><div class="row"><span class="v" id="kPend">—</span><span class="u">días</span></div><div class="s" id="kPendS"></div></div></div>
+      <div class="kpi alert kclic" data-f="urg" role="button" tabindex="0" aria-pressed="false" title="Ver en la tabla quiénes están en este indicador"><span class="banda"></span><div class="cuerpo"><div class="l">Urgentes</div><div class="row"><span class="v" id="kUrg">—</span><span class="u">trabajadores</span></div><div class="s" id="kUrgS"></div></div></div>
+      <div class="kpi kclic" data-f="va" role="button" tabindex="0" aria-pressed="false" title="Ver en la tabla quiénes están en este indicador"><span class="banda"></span><div class="cuerpo"><div class="l">Van a cumplir este año</div><div class="row"><span class="v" id="kVa">—</span><span class="u">trabajadores</span></div><div class="s" id="kVaS"></div></div></div>
+      <div class="kpi neutro kclic" data-f="ade" role="button" tabindex="0" aria-pressed="false" title="Ver en la tabla quiénes están en este indicador"><span class="banda"></span><div class="cuerpo"><div class="l">Con adelanto</div><div class="row"><span class="v" id="kAde">—</span><span class="u">trabajadores</span></div><div class="s" id="kAdeS"></div></div></div>
     </div>
 
     <div class="grid" id="gridArriba">
@@ -759,7 +766,7 @@ var nomBonito=function(s){return String(s||'').replace(/\s+/g,' ').trim();};
 var fecha=function(s){if(!s)return '';var m=String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[3]+'/'+m[2]+'/'+m[1]:s;};
 var aDate=function(s){var m=String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?new Date(+m[1],+m[2]-1,+m[3]):null;};
 var EST={URGENTE:{c:'c-urg',t:'Urgente'},CUMPLIO:{c:'c-cum',t:'Cumplió un período'},VA_A_CUMPLIR:{c:'c-va',t:'Va a cumplir'},ADELANTO:{c:'c-ade',t:'Adelanto'},PAGADO:{c:'c-pag',t:'Pagado'},EN_CURSO:{c:'',t:'En curso'}};
-var D=null, W=[], FIL=[], CH=null;
+var D=null, W=[], FIL=[], BASE=[], CH=null;
 var ST={vista:'calc',q:'',cc:'',tipo:'',est:'',per:'rec',mostrar:0};
 
 if(window.matchMedia('(max-width:600px)').matches){Chart.defaults.font.size=11;Chart.defaults.plugins.legend.labels.boxWidth=10;}
@@ -824,10 +831,13 @@ function armarFiltros(){
 function hayFiltro(){return !!(ST.q||ST.cc||ST.tipo||ST.est);}
 function filtrar(){
   var q=norm(ST.q);
-  FIL=W.filter(function(w){
+  BASE=W.filter(function(w){
     if(q&&w.k.indexOf(q)<0)return false;
     if(ST.cc&&w.cc!==ST.cc)return false;
     if(ST.tipo&&w.tipo!==ST.tipo)return false;
+    return true;});
+  FIL=BASE.filter(function(w){
+    if(ST.est==='pend'&&!(w.pend>0))return false;
     if(ST.est==='urg'&&!w.nUrg)return false;
     if(ST.est==='cum'&&!w.nCum)return false;
     if(ST.est==='va'&&!w.nVa)return false;
@@ -854,15 +864,17 @@ function render(){
 }
 function sum(l,k){return l.reduce(function(a,w){return a+(w[k]||0);},0);}
 function kpis(){
-  var conP=FIL.filter(function(w){return w.pend>0;}),u=FIL.filter(function(w){return w.nUrg>0;}),v=FIL.filter(function(w){return w.nVa>0;}),a=FIL.filter(function(w){return w.nAde>0;});
-  $('kPend').textContent=f0(sum(FIL,'pend'));
-  $('kPendS').textContent=f0(conP.length)+' de '+f0(FIL.length)+' trabajadores tienen días de períodos ya cumplidos sin gozar';
+  var B=BASE;
+  var conP=B.filter(function(w){return w.pend>0;}),u=B.filter(function(w){return w.nUrg>0;}),v=B.filter(function(w){return w.nVa>0;}),a=B.filter(function(w){return w.nAde>0;});
+  $('kPend').textContent=f0(sum(B,'pend'));
+  $('kPendS').textContent=f0(conP.length)+' de '+f0(B.length)+' trabajadores tienen días de períodos ya cumplidos sin gozar';
   $('kUrg').textContent=f0(u.length);
   $('kUrgS').textContent=f0(sum(u,'urg'))+' días de períodos cuyo plazo para gozar ya venció';
   $('kVa').textContent=f0(v.length);
   $('kVaS').textContent=f0(sum(v,'va'))+' días que ganarán al cumplir su período este año';
   $('kAde').textContent=f0(a.length);
   $('kAdeS').textContent=f0(sum(a,'ade'))+' días gozados antes de ganar el período';
+  document.querySelectorAll('.kclic').forEach(function(k){var on=k.dataset.f===ST.est;k.classList.toggle('activo',on);k.setAttribute('aria-pressed',on?'true':'false');});
 }
 var totalBarra={id:'totalBarra',afterDatasetsDraw:function(ch){
   var ctx=ch.ctx,n=ch.data.labels.length,last=ch.getDatasetMeta(ch.data.datasets.length-1);
@@ -906,7 +918,8 @@ function celdaCalc(w,y){
 function celdaSis(w,y){var d=w.sis[y];return d?'<span class="c-sis">'+f0(d)+'</span>':'';}
 function cabecera(){
   var ys=anios(),calc=ST.vista==='calc';
-  $('tTit').textContent=calc?'Vacaciones por trabajador · calculado':'Reporte del sistema · días gozados por año';
+  var NOMEST={pend:'con días ganados sin gozar',urg:'urgentes',cum:'con período cumplido',va:'van a cumplir este año',ade:'con adelanto',aldia:'sin días ganados pendientes'};
+  $('tTit').textContent=(calc?'Vacaciones por trabajador · calculado':'Reporte del sistema · días gozados por año')+(ST.est?' · '+FIL.length+' '+(FIL.length===1?'trabajador':'trabajadores')+' '+NOMEST[ST.est]:'');
   $('tSub').textContent=calc?'Cada celda = días que faltan gozar de ese período (30 menos lo gozado según el reporte del sistema). El período 2025-2026 es el año de servicio que empieza en el aniversario de ingreso de 2025. Pendiente ganado = días de períodos ya cumplidos sin gozar.'
     :'Días de vacaciones gozados por año, tal como vienen en el reporte de inasistencias programadas del sistema, sin cálculos.';
   $('leyenda').style.display=calc?'':'none';
@@ -1018,6 +1031,12 @@ function armar(){
   $('fCC').addEventListener('change',function(){ST.cc=this.value;render();});
   $('fTipo').addEventListener('change',function(){ST.tipo=this.value;render();});
   $('fEst').addEventListener('change',function(){ST.est=this.value;render();});
+  var elegirKpi=function(k){ST.est=(ST.est===k.dataset.f)?'':k.dataset.f;$('fEst').value=ST.est;render();
+    if(ST.est){var p=$('pTabla');if(MOVIL()&&p.classList.contains('plegado')){var b=p.querySelector('.verdet');if(b)b.click();}
+      var y=p.getBoundingClientRect().top+window.pageYOffset-(MOVIL()?8:70);window.scrollTo({top:y,behavior:'smooth'});}};
+  document.querySelectorAll('.kclic').forEach(function(k){
+    k.addEventListener('click',function(){elegirKpi(k);});
+    k.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();elegirKpi(k);}});});
   $('tBody').addEventListener('click',function(e){var td=e.target.closest('td.fijo');if(td)abrirFicha(td.dataset.cod);});
   $('lProx').addEventListener('click',function(e){var li=e.target.closest('li');if(li)abrirFicha(li.dataset.cod);});
   $('fCerrar').addEventListener('click',cerrarFicha);
