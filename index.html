@@ -1008,12 +1008,22 @@ window.VACAC={
     px.sort(function(p,q){return p.vs<q.vs?-1:p.vs>q.vs?1:0;});
     res.push({titulo:'Próximos en vencer (10)',columnas:[{campo:'cod',titulo:'Cód.',tipo:'alfanumerico'},{campo:'nom',titulo:'Trabajador',tipo:'texto'},{campo:'cc',titulo:'Centro de costo',tipo:'texto'},{campo:'per',titulo:'Período',tipo:'texto'},{campo:'d',titulo:'Días pendientes',tipo:'entero'},{campo:'ve',titulo:'Fecha límite',tipo:'fecha'}],filas:px.slice(0,10)});
     var colsBase=[{campo:'i',titulo:'Item',tipo:'entero'},{campo:'tp',titulo:'Tipo Trabajador',tipo:'texto'},{campo:'cod',titulo:'Cód. Trabajador',tipo:'alfanumerico'},{campo:'nom',titulo:'Trabajador',tipo:'texto'},{campo:'cc',titulo:'Centro Costo',tipo:'texto'},{campo:'oc',titulo:'Ocupación',tipo:'texto'},{campo:'ing',titulo:'Fec. Ingreso',tipo:'fecha'}];
-    var det={nota:'Cada celda = días que faltan gozar del período (30 menos lo gozado). Rojo: urgente (venció el plazo) · Ámbar: cumplió un período · Verde: va a cumplir este año · Gris azulado: adelanto (días gozados) · Gris: antes de su ingreso · Calculado al '+fecha(D.hoy)+'.',
-      congelarCols:4,
-      columnas:colsBase.concat(todos.map(function(y){return {campo:'p'+y,titulo:y+'-'+(y+1),tipo:'entero'};})).concat([{campo:'pend',titulo:'Pendiente ganado',tipo:'entero'},{campo:'prox',titulo:'Próximo vencimiento',tipo:'fecha'}]),
-      filas:L.map(function(w,i){var f={i:i+1,tp:w.tipo,cod:w.cod,nom:w.nom,cc:w.cc,oc:w.ocup,ing:aDate(w.ing),pend:w.pend||null,prox:aDate(w.prox)};
+    var filasDet=L.map(function(w,i){var f={i:i+1,tp:w.tipo,cod:w.cod,nom:w.nom,cc:w.cc,oc:w.ocup,ing:aDate(w.ing),pend:w.pend||null,prox:aDate(w.prox)};
         todos.forEach(function(y){if(y<w.ingY){f['e'+y]='NO_APLICA';return;}var o=w.per[y];if(!o)return;f['e'+y]=o.estado;
-          f['p'+y]=o.estado==='PAGADO'?'Pagado':(o.estado==='EN_CURSO'?null:o.valor);});return f;}),
+          f['p'+y]=o.estado==='PAGADO'?'Pagado':(o.estado==='EN_CURSO'?null:o.valor);});return f;});
+    /* Solo los períodos donde al menos un trabajador tiene días (pendiente, por cumplir o adelanto); los que son todo "Pagado" no salen. */
+    var conDato=todos.filter(function(y){return filasDet.some(function(f){return typeof f['p'+y]==='number';});});
+    var det={nota:'Cada celda = días que faltan gozar del período (30 menos lo gozado según el sistema); en Adelanto, días gozados antes de ganarlo. Solo salen los períodos con algún pendiente. Calculado al '+fecha(D.hoy)+'.',
+      congelarCols:4,
+      leyenda:[
+        {nombre:'Urgente',fondo:'FFDC2626',letra:'FFFFFFFF',texto:'Venció el plazo para gozar el período (un año después de cumplido).'},
+        {nombre:'Cumplió un periodo',fondo:'FFF59E0B',letra:'FF333333',texto:'Período ya ganado con días pendientes; aún está a tiempo de gozarlos.'},
+        {nombre:'Va a cumplir un periodo',fondo:'FF0F7A5A',letra:'FFFFFFFF',texto:'El período se completa este año; el número son los días que ganará y aún no gozó.'},
+        {nombre:'Adelanto de vacaciones',fondo:'FF4E6B78',letra:'FFFFFFFF',texto:'Días gozados antes de ganar el período (el número son los días adelantados).'},
+        {nombre:'Pagado',letra:'FF5F726C',texto:'Los 30 días del período ya se gozaron.'},
+        {nombre:'Antes de su ingreso',fondo:'FFDCE5E2',letra:'FF5F726C',texto:'El trabajador aún no ingresaba a la empresa en ese período.'}],
+      columnas:colsBase.concat(conDato.map(function(y){return {campo:'p'+y,titulo:y+'-'+(y+1),tipo:'entero'};})).concat([{campo:'pend',titulo:'Pendiente ganado',tipo:'entero'},{campo:'prox',titulo:'Próximo vencimiento',tipo:'fecha'}]),
+      filas:filasDet,
       pintar:function(f,c){if(c.campo.charAt(0)!=='p'||c.campo==='pend'||c.campo==='prox')return null;return PINTA[f['e'+c.campo.slice(1)]]||null;}};
     var hs={nombre:'Reporte del sistema',nota:'Días de vacaciones gozados por año, tal como vienen en el reporte de inasistencias programadas del sistema.',congelarCols:4,
       columnas:[{campo:'ing',titulo:'Fec. Ingreso',tipo:'fecha'},{campo:'tp',titulo:'Tipo Trabajador',tipo:'texto'},{campo:'cod',titulo:'COD. TRABAJADOR',tipo:'alfanumerico'},{campo:'nom',titulo:'TRABAJADOR',tipo:'texto'},{campo:'cc',titulo:'CENTRO COSTO',tipo:'texto'},{campo:'oc',titulo:'OCUPACION',tipo:'texto'},{campo:'doc',titulo:'Des_Ocupacion',tipo:'texto'}]
@@ -1740,7 +1750,7 @@ button.lsBtn:disabled{opacity:.5;cursor:not-allowed}
   window.__lsBa={arreglar:arreglar,MOV:MOV,F:function(){return F;},bf:barraFiltros};
 }catch(e){}})();</script>
 <!-- ===== fin lives-franja v6.1 ===== -->
-<!-- ===== lives-excel-reporte v1.10 · 2026-10-16 (agrega Vacaciones: hojas extra y color por celda, opcionales) · botón "Descargar Excel" con formato de reporte LIVES (estándar lives-excel).
+<!-- ===== lives-excel-reporte v1.11 · 2026-10-16 (agrega Vacaciones: hojas extra, color por celda y leyenda, opcionales) · botón "Descargar Excel" con formato de reporte LIVES (estándar lives-excel).
      Hoja Resumen = lo que se ve en pantalla con los filtros activos; hoja Detalle = cada registro del período.
      Solo agrega un botón: no cambia cálculos, datos ni guardados del tablero. ExcelJS se carga recién al presionar. ===== -->
 <script id="lsXlsJs">(function(){try{
@@ -1816,6 +1826,14 @@ function libro(cfg){
       var nd=d.columnas.length;
       var hd=wb.addWorksheet(nombre,{pageSetup:{orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0}});
       var fe=cabecera(wb,hd,nd,{titulo:cfg.titulo+' — '+nombre,sub:cfg.sub,formula:d.nota||''});
+      if(d.leyenda&&d.leyenda.length){var nc=Math.min(3,nd);
+        var lt=hd.getCell(fe,1);lt.value='Leyenda de colores';lt.font={name:'Calibri',size:11,bold:true,color:{argb:LX.PETROLEO}};hd.getRow(fe).height=18;fe++;
+        d.leyenda.forEach(function(x){if(nc>1)hd.mergeCells(fe,1,fe,nc);var c=hd.getCell(fe,1);c.value=x.nombre;
+          if(x.fondo)c.fill={type:'pattern',pattern:'solid',fgColor:{argb:x.fondo}};
+          c.font={name:'Calibri',size:11,bold:true,color:{argb:x.letra||LX.TXT}};c.alignment={vertical:'middle',horizontal:'center'};
+          c.border={top:{style:'thin',color:{argb:'FFFFFFFF'}},bottom:{style:'thin',color:{argb:'FFFFFFFF'}}};
+          if(nd>nc){hd.mergeCells(fe,nc+1,fe,nd);var t=hd.getCell(fe,nc+1);t.value=x.texto;t.font={name:'Calibri',size:10,color:{argb:LX.GRIS}};t.alignment={vertical:'middle',horizontal:'left',indent:1};}
+          hd.getRow(fe).height=18;fe++;});fe++;}
       encabezados(hd,fe,d.columnas);datos(hd,fe+1,d.columnas,d.filas);
       if(typeof d.pintar==='function'){d.filas.forEach(function(f,i){d.columnas.forEach(function(c,j){var p=d.pintar(f,c);if(!p)return;var cel=hd.getCell(fe+1+i,j+1);
         cel.fill={type:'pattern',pattern:'solid',fgColor:{argb:p.fondo}};if(p.letra)cel.font={name:'Calibri',size:11,bold:true,color:{argb:p.letra}};cel.alignment={vertical:'middle',horizontal:'center'};});});}
